@@ -1,16 +1,28 @@
-import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/database"
 import { verifyPassword } from "@/lib/auth"
 import { SignJWT } from "jose"
 
+// En app/api/portal/auth/login/route.ts
+let customerUser: any = null; // O el tipo que uses
+
 const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || "fallback-secret")
 
-export async function POST(request: NextRequest) {
+function jsonResponse(data: any, status = 200, extraHeaders: Record<string, string> = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      ...extraHeaders,
+    },
+  })
+}
+
+export async function POST(request: Request) {
   try {
     const { email, password } = await request.json()
 
     if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
+      return jsonResponse({ error: "Email and password are required" }, 400)
     }
 
     // PRIORITY 1: Try to find agent with portal access first
@@ -30,7 +42,7 @@ export async function POST(request: NextRequest) {
       isAgent = true
       const isValidPassword = await verifyPassword(password, agent.portal_password_hash)
       if (!isValidPassword) {
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+        return jsonResponse({ error: "Invalid credentials" }, 401)
       }
     } else {
       // PRIORITY 2: Try to find customer user
@@ -45,22 +57,22 @@ export async function POST(request: NextRequest) {
 
       if (!user) {
         // No agent or customer found
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+        return jsonResponse({ error: "Invalid credentials" }, 401)
       }
 
       const isCustomer = user.role === "customer" || user.role_name === "customer"
       if (!isCustomer) {
         // User exists but is not a customer (e.g., admin/agent user without portal access)
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+        return jsonResponse({ error: "Invalid credentials" }, 401)
       }
 
       const isValidPassword = await verifyPassword(password, user.password_hash)
       if (!isValidPassword) {
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+        return jsonResponse({ error: "Invalid credentials" }, 401)
       }
 
       // Store user for token creation
-      var customerUser = user
+      customerUser = user
     }
 
     // Create JWT token - Extended to 7 days for better user experience
@@ -105,20 +117,14 @@ export async function POST(request: NextRequest) {
           },
         }
 
-    const response = NextResponse.json(responseData)
+    // Build Set-Cookie header manually for environments without next/server types
+    const maxAge = 60 * 60 * 24 * 7 // 7 days in seconds
+    const secureFlag = process.env.NODE_ENV === "production" ? "; Secure" : ""
+    const cookie = `portal-auth-token=${token}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax${secureFlag}`
 
-    // Set HTTP-only cookie for portal - 7 days expiration
-    response.cookies.set("portal-auth-token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
-      path: "/",
-    })
-
-    return response
+    return jsonResponse(responseData, 200, { "Set-Cookie": cookie })
   } catch (error) {
     console.error("Portal login error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return jsonResponse({ error: "Internal server error" }, 500)
   }
 }
