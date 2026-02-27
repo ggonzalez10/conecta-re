@@ -2,24 +2,24 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 COPY package*.json ./
-# Instalamos todas las dependencias incluyendo devDependencies para el build
-RUN npm install
+# Usamos el flag para resolver el conflicto de React 19 vs Next 14
+RUN npm install --legacy-peer-deps
 COPY . .
 RUN npm run build
 
-# Etapa 2: Ejecución (Runtime) - Imagen final mucho más ligera
+# Etapa 2: Ejecución (Runtime)
 FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copiamos solo lo necesario desde la etapa de construcción
+# Copiamos lo necesario
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
 
-# Instalamos solo dependencias de producción (omitiendo typescript, linters, etc.)
-RUN npm install --only=production
+# IMPORTANTE: Aquí también necesitamos el flag para evitar el error ERESOLVE
+RUN npm install --only=production --legacy-peer-deps
 
-# Cloud Run escucha en el puerto 8080 por defecto
+# Cloud Run puerto por defecto
 EXPOSE 8080
 
 CMD ["node", "dist/index.js"]

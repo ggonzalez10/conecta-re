@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
+    "build": "tsc",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "node dist/index.js"    
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
