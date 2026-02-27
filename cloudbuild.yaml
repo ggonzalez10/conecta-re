@@ -21,6 +21,11 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      - '--add-cloudsql-instances'
+      - '$PROJECT_ID:us-east1:conecta-reinstance'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
 
 images:
   - 'gcr.io/$PROJECT_ID/conecta-re-app'
